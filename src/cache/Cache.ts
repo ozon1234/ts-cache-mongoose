@@ -25,7 +25,7 @@ export class Cache {
         this.#engine = new MemoryCacheEngine()
       }
     } else {
-      this.#engine = cacheOptions.engine;
+      this.#engine = cacheOptions.engine
     }
 
     if (cacheOptions.engine === 'redis' && !cacheOptions.engineOptions) {
