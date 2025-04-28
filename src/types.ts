@@ -6,7 +6,7 @@ export type CacheTTL = number | StringValue
 export type CacheData = Record<string, unknown> | Record<string, unknown>[] | unknown[] | number | undefined
 
 export type CacheOptions = {
-  engine: 'memory' | 'redis'
+  engine: 'memory' | 'redis' | CacheEngine
   engineOptions?: RedisOptions
   defaultTTL?: CacheTTL
   debug?: boolean

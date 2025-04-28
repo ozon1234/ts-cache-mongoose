@@ -12,8 +12,20 @@ export class Cache {
   readonly #engines = ['memory', 'redis'] as const
 
   constructor(cacheOptions: CacheOptions) {
-    if (!this.#engines.includes(cacheOptions.engine)) {
-      throw new Error(`Invalid engine name: ${cacheOptions.engine}`)
+    if (typeof cacheOptions.engine === 'string') {
+      if (!this.#engines.includes(cacheOptions.engine)) {
+        throw new Error(`Invalid engine name: ${cacheOptions.engine}`)
+      }
+
+      if (cacheOptions.engine === 'redis' && cacheOptions.engineOptions) {
+        this.#engine = new RedisCacheEngine(cacheOptions.engineOptions)
+      }
+
+      if (cacheOptions.engine === 'memory') {
+        this.#engine = new MemoryCacheEngine()
+      }
+    } else {
+      this.#engine = cacheOptions.engine;
     }
 
     if (cacheOptions.engine === 'redis' && !cacheOptions.engineOptions) {
@@ -25,14 +37,6 @@ export class Cache {
     }
 
     this.#defaultTTL = typeof cacheOptions.defaultTTL === 'string' ? ms(cacheOptions.defaultTTL) : cacheOptions.defaultTTL
-
-    if (cacheOptions.engine === 'redis' && cacheOptions.engineOptions) {
-      this.#engine = new RedisCacheEngine(cacheOptions.engineOptions)
-    }
-
-    if (cacheOptions.engine === 'memory') {
-      this.#engine = new MemoryCacheEngine()
-    }
 
     this.#debug = cacheOptions.debug === true
   }
