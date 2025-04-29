@@ -1,14 +1,36 @@
 import { getKey } from '../key'
 
-import type { Mongoose } from 'mongoose'
+import { ObjectId } from 'bson'
+import type { Document, Mongoose, Query } from 'mongoose'
 import type { Cache } from '../cache/Cache'
 import type { CacheTTL } from '../types'
 
 export function extendQuery(mongoose: Mongoose, cache: Cache): void {
   const mongooseExec = mongoose.Query.prototype.exec
 
+  const isSimpleFind = (query: Query<unknown, Document>): boolean => {
+    const cond = query.getQuery()
+    return (
+      query.op === 'findOne' &&
+      // @ts-ignore
+      query.model.schema.__isCachable &&
+      // @ts-ignore
+      cond._id &&
+      Object.keys(cond).length === 1 &&
+      // @ts-ignore
+      (typeof cond._id === 'string' || cond._id instanceof ObjectId)
+    )
+  }
+
   mongoose.Query.prototype.getCacheKey = function (): string {
-    if (this._key != null) return this._key
+    if (this._key != null) {
+      return this._key
+    }
+
+    if (isSimpleFind(this)) {
+      // @ts-ignore
+      return `${this.model.collection.collectionName}:${this.getQuery()._id}`
+    }
 
     const filter = this.getFilter()
     const update = this.getUpdate()
@@ -30,7 +52,15 @@ export function extendQuery(mongoose: Mongoose, cache: Cache): void {
   }
 
   mongoose.Query.prototype.getCacheTTL = function (): CacheTTL | null {
-    return this._ttl
+    if (this._ttl != null) {
+      return this._ttl
+    }
+
+    if (isSimpleFind(this)) {
+      return '60 seconds'
+    }
+
+    return null
   }
 
   mongoose.Query.prototype.cache = function (ttl?: CacheTTL, customKey?: string) {
@@ -40,13 +70,13 @@ export function extendQuery(mongoose: Mongoose, cache: Cache): void {
   }
 
   mongoose.Query.prototype.exec = async function (...args: []) {
-    if (!Object.prototype.hasOwnProperty.call(this, '_ttl')) {
-      return mongooseExec.apply(this, args)
-    }
-
     const key = this.getCacheKey()
     const ttl = this.getCacheTTL()
     const mongooseOptions = this.mongooseOptions()
+
+    if (!ttl) {
+      return mongooseExec.apply(this, args)
+    }
 
     const isCount = this.op?.includes('count') ?? false
     const isDistinct = this.op === 'distinct'
